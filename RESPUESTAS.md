@@ -1,6 +1,6 @@
 # Respuestas · Laboratorio 4
 Alumno: [20220867]
-Presupuesto: [ ] min  Métrica DORA: [ ]
+Presupuesto: [11] min  Métrica DORA: [time to restore]
 
 ## Parte 1 · Diagnóstico
 ### Defecto 1
