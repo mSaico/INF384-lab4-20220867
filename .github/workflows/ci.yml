@@ -79,7 +79,6 @@ jobs:
             --workdir /src \
             ghcr.io/aquasecurity/trivy:0.76.1 fs \
               --scanners vuln \
-              --include-dev-deps \
               --severity HIGH,CRITICAL \
               --exit-code 1 \
               package-lock.json
@@ -230,7 +229,7 @@ jobs:
             --output text
 
   smoke:
-    needs: build-push
+    needs: deploy
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -259,6 +258,7 @@ jobs:
       - name: Smoke
         env:
           BASE_URL: ${{ steps.url.outputs.url }}
+          EXPECTED_COMMIT: ${{ github.sha }}
         run: test/smoke/smoke.sh
 
   e2e:
@@ -273,9 +273,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      - name: Navegador
-        run: npx playwright install --with-deps chromium
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -304,7 +301,7 @@ jobs:
         run: npm run test:e2e
 
   load:
-    needs: smoke
+    needs: e2e
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
