@@ -6,7 +6,7 @@ Presupuesto: 11 min  Métrica DORA: time to restore
 ### Defecto 1
 - Job y etapa: smoke, etapa deploy. Tenía `needs: build-push`, igual que deploy, así que corría en paralelo con el despliegue en lugar de en post-deploy.
 - Problema que causa en el pipeline: smoke llama a la Function URL mientras deploy todavía actualiza la Lambda. Puede probar la versión anterior y salir en verde con una versión que nadie probó, y e2e y load heredan el error porque dependen de smoke. Además, el job no le pasaba EXPECTED_COMMIT a smoke.sh, así que la verificación de versión del script nunca se ejecutaba.
-- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/pull/1/changes/7ecb8788b5acee53a8600458454b85f2defcb508.
+- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/commit/7ecb8788b5acee53a8600458454b85f2defcb508.
 - Corrección: mover de etapa (`needs: deploy`) y ajustar configuración (`EXPECTED_COMMIT: ${{ github.sha }}`).
 - Evidencia: en el run https://github.com/mSaico/INF384-lab4-20220867/actions/runs/40956240516, smoke y deploy arrancan a la vez después de build-push. En el run https://github.com/mSaico/INF384-lab4-20220867/actions/runs/40960947189, smoke corre después de deploy y su log muestra:
   `salud: {"ok":true,"version":"1.0.0","commit":"5d6ec3207c65845250c43c2a0727f9cf23988319"}`
@@ -16,14 +16,14 @@ Presupuesto: 11 min  Métrica DORA: time to restore
 ### Defecto 2
 - Job y etapa: load, post-deploy (test/load/transferir.js).
 - Problema que causa en el pipeline: `http.expectedStatuses(200, 400)` y el check "transferir 200 o 400" contaban un rechazo como éxito. Si un defecto hiciera que /transferir respondiera 400 a todo, load pasaría con 0 % de errores e incluso con un p95 menor, porque un rechazo no escribe en la base. Medía la latencia de respuestas de error, no la de transferencias reales.
-- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/pull/1/changes/24b812a2c89dfaec969508a806bb30af587c711c.
+- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/commit/24b812a2c89dfaec969508a806bb30af587c711c.
 - Corrección: modificar tests (en transferir solo es válido un 200).
 - Evidencia: run https://github.com/mSaico/INF384-lab4-20220867/actions/runs/40960947189, resumen de k6: `✓ transferir 200`, checks 100.00 % (35164 de 35164), `http_req_failed 0.00%`. Con montos de S/ 1 y saldos semilla de S/ 300 a S/ 1 200, ninguna transferencia legítima devolvió 400: aceptarlo solo ocultaba fallas.
 
 ### Defecto 3
 - Job y etapa: sca, pre-build.
 - Problema que causa en el pipeline: `--include-dev-deps` analizaba Playwright, c8, esbuild y sus dependencias transitivas, que no llegan a la imagen (el Dockerfile empaqueta con esbuild y ejecuta `npm prune --omit=dev`). Una vulnerabilidad HIGH o CRITICAL en cualquiera de ellos detendría build-push y el despliegue sin riesgo en lo que corre en producción: un falso positivo que bloquea.
-- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/pull/1/changes/2daa06363d370b70e830b7f84bc49ba9450dea00.
+- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/commit/2daa06363d370b70e830b7f84bc49ba9450dea00.
 - Corrección: ajustar configuración (se elimina `--include-dev-deps`). Lo que realmente se despliega lo sigue revisando el escaneo de la imagen.
 - Evidencia: salida local en PowerShell:
   `PS> (Select-String -Path .\package-lock.json -Pattern '"dev": true').Count`
@@ -33,14 +33,14 @@ Presupuesto: 11 min  Métrica DORA: time to restore
 ### Defecto 4
 - Job y etapa: load, post-deploy.
 - Problema que causa en el pipeline: load y e2e dependían los dos de smoke y corrían en paralelo contra la misma Lambda. El p95 de load incluía el tráfico de e2e, y e2e corría bajo carga mientras load modificaba saldos. Además, si e2e fallaba, load igual consumía unos 12 minutos que se suman a la duración del pipeline.
-- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/pull/1/changes/248bdb747711bb3e5c56ace7d9e5ef3e3acbe054.
+- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/commit/248bdb747711bb3e5c56ace7d9e5ef3e3acbe054.
 - Corrección: mover de etapa (`needs: e2e`).
 - Evidencia: en el run https://github.com/mSaico/INF384-lab4-20220867/actions/runs/40956240516, e2e y load arrancan juntos después de smoke. En el run https://github.com/mSaico/INF384-lab4-20220867/actions/runs/40960947189, load arranca cuando termina e2e (e2e 0:17 y luego load 12:11).
 
 ### Defecto 5
 - Job y etapa: e2e, post-deploy (ci.yml y test/e2e/api.spec.ts).
 - Problema que causa en el pipeline: Monedero Andino es una API JSON, pero el job instalaba chromium con sus dependencias del sistema en cada run, porque las pruebas usaban el fixture `page`, que abre el navegador aunque solo se use `page.request`. Era tiempo perdido sin verificar nada que el cliente HTTP no cubra.
-- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/pull/1/changes/8f539cb7f1a5dcf24521c3ee76c759a479df56f6 y https://github.com/mSaico/INF384-lab4-20220867/pull/1/changes/91f3c3cd748783338ad0829f95eb438465533cd8.
+- Link al commit: https://github.com/mSaico/INF384-lab4-20220867/commit/8f539cb7f1a5dcf24521c3ee76c759a479df56f6 y https://github.com/mSaico/INF384-lab4-20220867/commit/91f3c3cd748783338ad0829f95eb438465533cd8.
 - Corrección: modificar tests (fixture `request`) y eliminar (el paso Navegador).
 - Evidencia: run base https://github.com/mSaico/INF384-lab4-20220867/actions/runs/40956240516/job/123737707568: job e2e de 40 s, de los cuales el paso "Navegador" (npx playwright install --with-deps chromium) dura 19 s, casi la mitad del job. En el run corregido https://github.com/mSaico/INF384-lab4-20220867/actions/runs/40960947189, el job e2e dura 17 s: 23 s recuperados en cada run, y las mismas 10 pruebas pasan sin navegador.
 
